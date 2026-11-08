@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Recall – Flashcard Review</title>
+<style>
+:root{--bg:#f6f5f2;--surface:#fff;--ink:#1c1b19;--mute:#6f6c66;--line:#e6e3dc;--accent:#4f46e5;--again:#e5484d;--hard:#d9811c;--good:#2a9565;--easy:#3b78e7;--shadow:0 1px 2px rgba(0,0,0,.04),0 10px 34px rgba(30,30,20,.08);color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#141413;--surface:#1f1f1d;--ink:#f1efe9;--mute:#a09c93;--line:#32312d;--accent:#8b85ff;--again:#f2686c;--hard:#f0a14a;--good:#46c28b;--easy:#6b9bff;--shadow:0 1px 2px rgba(0,0,0,.3),0 10px 34px rgba(0,0,0,.35);color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#141413;--surface:#1f1f1d;--ink:#f1efe9;--mute:#a09c93;--line:#32312d;--accent:#8b85ff;--again:#f2686c;--hard:#f0a14a;--good:#46c28b;--easy:#6b9bff;--shadow:0 1px 2px rgba(0,0,0,.3),0 10px 34px rgba(0,0,0,.35);color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:16px/1.5 Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;min-height:100vh}
+.wrap{max-width:720px;margin:0 auto;padding:20px 16px 48px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:22px;flex-wrap:wrap}
+.brand{font-weight:700;font-size:20px;letter-spacing:-.02em;display:flex;align-items:center;gap:8px}
+.dot{width:12px;height:12px;border-radius:4px;background:var(--accent);transform:rotate(45deg)}
+nav{display:flex;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:3px}
+nav button{border:0;background:none;color:var(--mute);font:inherit;font-size:14px;font-weight:600;padding:7px 14px;border-radius:9px;cursor:pointer}
+nav button[aria-selected="true"]{background:var(--accent);color:#fff}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.stat b{display:block;font-size:22px;letter-spacing:-.02em}
+.stat span{font-size:12px;color:var(--mute);text-transform:uppercase;letter-spacing:.06em}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow);padding:28px 24px;min-height:300px;display:flex;flex-direction:column;animation:in .28s ease}
+@keyframes in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.tag{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--mute);margin-bottom:10px}
+.q{font-size:clamp(22px,4.5vw,30px);font-weight:650;letter-spacing:-.02em;line-height:1.25;overflow-wrap:anywhere;white-space:pre-wrap}
+.ans{margin-top:22px;padding-top:20px;border-top:1px dashed var(--line);animation:in .25s ease}
+.ans .q{font-weight:500;font-size:clamp(19px,4vw,24px);color:var(--accent)}
+.grow{flex:1}
+.actions{margin-top:24px}
+.btn{font:inherit;font-weight:600;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:12px;padding:11px 18px;cursor:pointer;transition:transform .08s,opacity .15s}
+.btn:hover{opacity:.9}.btn:active{transform:scale(.97)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.block{width:100%;padding:15px;font-size:16px}
+.btn.danger{color:var(--again)}
+.rate{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.rate button{font:inherit;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:14px;padding:10px 4px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;transition:transform .08s}
+.rate button:active{transform:scale(.95)}
+.rate b{font-size:15px}.rate small{font-size:12px;color:var(--mute)}
+.rate button[data-r="again"]{border-bottom:3px solid var(--again)}
+.rate button[data-r="hard"]{border-bottom:3px solid var(--hard)}
+.rate button[data-r="good"]{border-bottom:3px solid var(--good)}
+.rate button[data-r="easy"]{border-bottom:3px solid var(--easy)}
+.hint{text-align:center;color:var(--mute);font-size:12px;margin-top:12px}
+.center{text-align:center;margin:auto}
+.center h2{margin:0 0 6px;letter-spacing:-.02em}
+.center p{color:var(--mute);margin:0 0 18px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:20px;margin-bottom:16px}
+.panel h3{margin:0 0 4px;font-size:17px;letter-spacing:-.01em}
+.panel p{margin:0 0 14px;color:var(--mute);font-size:14px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.drop{border:2px dashed var(--line);border-radius:14px;padding:22px;text-align:center;color:var(--mute);cursor:pointer;margin-bottom:12px}
+.drop.over{border-color:var(--accent);color:var(--accent)}
+label.chk{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--mute)}
+code{background:var(--bg);padding:2px 6px;border-radius:6px;font-size:13px}
+.totals{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}
+.totals div{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px;text-align:center}
+.totals b{display:block;font-size:20px}.totals span{font-size:12px;color:var(--mute)}
+.hard-item{padding:12px 0;border-top:1px solid var(--line)}
+.hard-item:first-of-type{border-top:0}
+.hard-top{display:flex;gap:10px;justify-content:space-between;align-items:baseline}
+.hard-top .t{font-weight:600;overflow-wrap:anywhere}
+.hard-top .n{font-size:12px;color:var(--mute);white-space:nowrap}
+.bar{height:6px;border-radius:99px;background:var(--bg);margin:8px 0 6px;overflow:hidden}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--hard),var(--again));border-radius:99px}
+.counts{font-size:12px;color:var(--mute);display:flex;gap:12px;flex-wrap:wrap}
+.counts em{font-style:normal;font-weight:600}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px;min-width:460px}
+th,td{text-align:left;padding:8px 8px;border-top:1px solid var(--line)}
+th{color:var(--mute);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.06em;border-top:0}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+td.f{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+dialog{border:1px solid var(--line);border-radius:18px;background:var(--surface);color:var(--ink);width:min(560px,92vw);padding:20px}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+textarea{width:100%;height:220px;font:12px/1.4 ui-monospace,Menlo,monospace;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:10px;margin:10px 0}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:99px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s}
+.toast.on{opacity:1}
+.empty{color:var(--mute);text-align:center;padding:12px}
+@media (max-width:480px){.card{padding:22px 18px}.totals{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand"><span class="dot"></span>Recall</div>
+    <nav role="tablist">
+      <button role="tab" data-v="study">Study</button>
+      <button role="tab" data-v="insights">Insights</button>
+      <button role="tab" data-v="deck">Deck</button>
+    </nav>
+  </header>
+  <main id="main"></main>
+</div>
+<dialog id="dlg">
+  <b>Copy your results (CSV)</b>
+  <textarea id="csvText" readonly></textarea>
+  <div class="row"><button class="btn primary" id="copyBtn">Copy</button><button class="btn" id="closeBtn">Close</button></div>
+</dialog>
+<div class="toast" id="toast"></div>
+<script>
+const KEY = "recall.deck.v1";
+const MIN = 60000;
+const INT = { again: 1 * MIN, hard: 5 * MIN, good: 15 * MIN };
+let deck = load(), view = "study", cur = null, revealed = false, early = false, timer = null;
+
+function load() { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { return []; } }
+function persist() { try { localStorage.setItem(KEY, JSON.stringify(deck)); } catch (e) {} }
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const $ = s => document.querySelector(s);
+function toast(t) { const el = $("#toast"); el.textContent = t; el.classList.add("on"); setTimeout(() => el.classList.remove("on"), 2200); }
+function fmt(ms) {
+  const m = Math.round(ms / MIN);
+  if (m < 1) return "<1m";
+  if (m < 60) return m + "m";
+  const h = Math.round(m / 60);
+  if (h < 24) return h + "h";
+  return Math.round(h / 24) + "d";
+}
+const goodInt = c => INT.good * Math.pow(4, c.streak || 0);
+const score = c => c.again * 3 + c.hard * 1.5;
+const total = c => c.again + c.hard + c.good + c.easy;
+
+function parse(text, skipHeader) {
+  const rows = text.split(/\r?\n/).map(l => l.split("\t")).filter(r => r.length >= 2 && (r[0].trim() || r[1].trim()));
+  if (skipHeader) rows.shift();
+  return rows.map(r => [r[0].trim(), r[1].trim()]).filter(r => r[0] && r[1]);
+}
+function looksLikeHeader(text) {
+  const r = (text.split(/\r?\n/)[0] || "").split("\t").map(s => s.trim().toLowerCase());
+  return ["test", "prompt", "front", "question", "term"].includes(r[0]) && ["response", "answer", "back", "definition"].includes(r[1]);
+}
+function addCards(pairs) {
+  const seen = new Set(deck.map(c => c.front + "\u0001" + c.back));
+  let n = 0;
+  for (const [front, back] of pairs) {
+    const k = front + "\u0001" + back;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    deck.push({ id: Date.now() + "-" + Math.random().toString(36).slice(2, 7), front, back, again: 0, hard: 0, good: 0, easy: 0, due: 0, streak: 0, retired: false });
+    n++;
+  }
+  persist();
+  return n;
+}
+
+function pick() {
+  const live = deck.filter(c => !c.retired).sort((a, b) => a.due - b.due);
+  if (!live.length) return { state: "done" };
+  if (live[0].due <= Date.now() || early) return { c: live[0] };
+  return { state: "wait", next: live[0].due };
+}
+
+function rate(r) {
+  if (!cur || !revealed) return;
+  cur[r]++;
+  const now = Date.now();
+  if (r === "easy") { cur.retired = true; cur.streak = 0; }
+  else if (r === "good") { cur.due = now + goodInt(cur); cur.streak = (cur.streak || 0) + 1; }
+  else { cur.due = now + INT[r]; cur.streak = 0; }
+  cur.last = now;
+  persist();
+  cur = null; revealed = false;
+  render();
+}
+
+function studyView() {
+  const live = deck.filter(c => !c.retired);
+  const dueN = live.filter(c => c.due <= Date.now()).length;
+  const stats = `<div class="stats"><div class="stat"><b>${dueN}</b><span>Due now</span></div><div class="stat"><b>${live.length}</b><span>In rotation</span></div><div class="stat"><b>${deck.length - live.length}</b><span>Mastered</span></div></div>`;
+  if (!deck.length) return `<div class="card"><div class="center"><h2>No cards yet</h2><p>Import a tab-separated text file to begin.</p><button class="btn primary" data-go="deck">Import cards</button></div></div>`;
+  const p = pick();
+  if (!p.c) {
+    clearTimeout(timer);
+    if (p.state === "done") return stats + `<div class="card"><div class="center"><h2>Deck complete ✨</h2><p>Every card has been marked Easy. Check Insights to see which ones gave you trouble.</p><button class="btn" data-go="insights">View insights</button></div></div>`;
+    timer = setTimeout(render, 1000);
+    return stats + `<div class="card"><div class="center"><h2>All caught up</h2><p>Next card in <b>${fmt(Math.max(0, p.next - Date.now()) + 30000).replace("<1m", "under a minute")}</b>.</p><button class="btn primary" id="early">Study early</button></div></div>`;
+  }
+  if (cur !== p.c) { cur = p.c; revealed = false; }
+  const c = cur;
+  const hints = { again: INT.again, hard: INT.hard, good: goodInt(c) };
+  const body = revealed
+    ? `<div class="ans"><div class="tag">Answer</div><div class="q">${esc(c.back)}</div></div><div class="grow"></div>
+       <div class="actions"><div class="rate">
+         <button data-r="again"><b>Again</b><small>${fmt(hints.again)}</small></button>
+         <button data-r="hard"><b>Hard</b><small>${fmt(hints.hard)}</small></button>
+         <button data-r="good"><b>Good</b><small>${fmt(hints.good)}</small></button>
+         <button data-r="easy"><b>Easy</b><small>Retire</small></button></div></div>`
+    : `<div class="grow"></div><div class="actions"><button class="btn primary block" id="show">Show answer</button></div>`;
+  return stats + `<div class="card" key="${c.id}"><div class="tag">Prompt</div><div class="q">${esc(c.front)}</div>${body}</div>
+    <div class="hint">${revealed ? "Keys 1–4 to rate" : "Think it through first, then press Space"}</div>`;
+}
+
+function insightsView() {
+  if (!deck.length) return `<div class="panel empty">Import a deck to see insights.</div>`;
+  const t = { again: 0, hard: 0, good: 0, easy: 0 };
+  deck.forEach(c => { for (const k in t) t[k] += c[k]; });
+  const reviewed = deck.filter(c => total(c) > 0);
+  const ranked = reviewed.filter(c => score(c) > 0).sort((a, b) => score(b) - score(a) || total(b) - total(a));
+  const max = ranked.length ? score(ranked[0]) : 1;
+  const hardest = ranked.slice(0, 8).map(c => `<div class="hard-item"><div class="hard-top"><span class="t">${esc(c.front)}</span><span class="n">score ${score(c)}</span></div>
+    <div class="bar"><i style="width:${Math.max(6, score(c) / max * 100)}%"></i></div>
+    <div class="counts"><span>Again <em>${c.again}</em></span><span>Hard <em>${c.hard}</em></span><span>Good <em>${c.good}</em></span><span>Easy <em>${c.easy}</em></span></div></div>`).join("");
+  const all = [...deck].sort((a, b) => score(b) - score(a) || total(b) - total(a)).map(c => `<tr><td class="f" title="${esc(c.front)}">${esc(c.front)}</td><td class="num">${c.again}</td><td class="num">${c.hard}</td><td class="num">${c.good}</td><td class="num">${c.easy}</td><td class="num">${score(c)}</td></tr>`).join("");
+  return `<div class="totals"><div><b style="color:var(--again)">${t.again}</b><span>Again</span></div><div><b style="color:var(--hard)">${t.hard}</b><span>Hard</span></div><div><b style="color:var(--good)">${t.good}</b><span>Good</span></div><div><b style="color:var(--easy)">${t.easy}</b><span>Easy</span></div></div>
+  <div class="panel"><h3>Most difficult cards</h3><p>Score = Again × 3 + Hard × 1.5. Higher means more struggle.</p>${hardest || '<div class="empty">Nothing yet – cards you rate Again or Hard will show up here.</div>'}</div>
+  <div class="panel"><div class="row" style="justify-content:space-between;margin-bottom:10px"><div><h3>All cards</h3></div><button class="btn primary" id="export">Export CSV</button></div>
+  <div class="scroll"><table><thead><tr><th>Prompt</th><th class="num">Again</th><th class="num">Hard</th><th class="num">Good</th><th class="num">Easy</th><th class="num">Score</th></tr></thead><tbody>${all}</tbody></table></div></div>`;
+}
+
+function deckView() {
+  return `<div class="panel"><h3>Import flashcards</h3><p>A plain <code>.txt</code> file with one card per line: prompt, a tab, then the answer. A header line like <code>test⇥response</code> can be skipped. To pick up where you left off, import the results CSV you exported earlier.</p>
+  <div class="drop" id="drop">Drop a .txt deck or a results .csv here, or tap to choose<input type="file" id="file" accept=".txt,.tsv,.csv,text/plain,text/csv" hidden></div>
+  <label class="chk"><input type="checkbox" id="skip" checked> Skip a header line like “test / response” if present</label>
+  <div class="row" style="margin-top:14px"><button class="btn" id="sample">Load sample deck</button></div></div>
+  <div class="panel"><h3>Your deck</h3><p>${deck.length} card${deck.length === 1 ? "" : "s"} saved in this browser. Duplicates are skipped on import and your stats are kept.</p>
+  <div class="row"><button class="btn primary" id="export">Export progress CSV</button><button class="btn" id="resetStats">Reset stats</button><button class="btn danger" id="clear">Delete deck</button></div></div>`;
+}
+
+function toCsv() {
+  const q = v => '"' + String(v).replace(/"/g, '""') + '"';
+  const head = ["prompt", "answer", "again", "hard", "good", "easy", "total_reviews", "struggle_score", "status", "due_ms", "streak"];
+  const rows = [...deck].sort((a, b) => score(b) - score(a)).map(c => [c.front, c.back, c.again, c.hard, c.good, c.easy, total(c), score(c), c.retired ? "mastered" : total(c) ? "learning" : "new", c.due || 0, c.streak || 0].map(q).join(","));
+  return [head.join(","), ...rows].join("\r\n");
+}
+async function exportCsv() {
+  const csv = toCsv();
+  let d = null;
+  try { d = await window.claude?.use("downloads"); } catch (e) {}
+  if (d) {
+    try { await d.save({ filename: "flashcard-results.csv", data: csv }); toast("Results exported"); return; }
+    catch (e) { if (e && e.code === "declined") return; }
+  }
+  if (!d) {
+    try {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+      a.download = "flashcard-results.csv";
+      document.body.appendChild(a); a.click(); a.remove();
+      toast("Results downloaded"); return;
+    } catch (e) {}
+  }
+  $("#csvText").value = csv;
+  $("#dlg").showModal();
+}
+
+function render() {
+  clearTimeout(timer);
+  document.querySelectorAll("nav button").forEach(b => b.setAttribute("aria-selected", b.dataset.v === view));
+  $("#main").innerHTML = view === "study" ? studyView() : view === "insights" ? insightsView() : deckView();
+  bind();
+}
+function go(v) { view = v; early = false; cur = null; revealed = false; render(); }
+
+function parseCsv(t) {
+  const rows = []; let r = [], f = "", q = false;
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if (q) { if (c === '"') { if (t[i + 1] === '"') { f += '"'; i++; } else q = false; } else f += c; }
+    else if (c === '"') q = true;
+    else if (c === ",") { r.push(f); f = ""; }
+    else if (c === "\n" || c === "\r") { if (c === "\r" && t[i + 1] === "\n") i++; r.push(f); f = ""; rows.push(r); r = []; }
+    else f += c;
+  }
+  if (f !== "" || r.length) { r.push(f); rows.push(r); }
+  return rows.filter(x => x.some(v => v !== ""));
+}
+function importCsv(text) {
+  const rows = parseCsv(text.replace(/^\uFEFF/, ""));
+  if (rows.length < 2) return 0;
+  const h = rows[0].map(s => s.trim().toLowerCase());
+  const ix = k => h.indexOf(k);
+  const num = (r, k) => { const v = parseFloat(r[ix(k)]); return isFinite(v) ? v : 0; };
+  const map = new Map(deck.map(c => [c.front + "\u0001" + c.back, c]));
+  let n = 0;
+  for (const r of rows.slice(1)) {
+    const front = (r[ix("prompt")] || "").trim(), back = (r[ix("answer")] || "").trim();
+    if (!front || !back) continue;
+    const k = front + "\u0001" + back;
+    let c = map.get(k);
+    if (!c) { c = { id: Date.now() + "-" + Math.random().toString(36).slice(2, 7), front, back }; deck.push(c); map.set(k, c); }
+    Object.assign(c, { again: num(r, "again"), hard: num(r, "hard"), good: num(r, "good"), easy: num(r, "easy"), due: num(r, "due_ms"), streak: num(r, "streak"), retired: (r[ix("status")] || "").trim() === "mastered" });
+    n++;
+  }
+  persist();
+  return n;
+}
+async function importFile(f) {
+  if (!f) return;
+  const text = await f.text();
+  if (/\.csv$/i.test(f.name) || /^prompt,answer,again/i.test(text.replace(/^\uFEFF/, "").trim())) {
+    const n = importCsv(text);
+    toast(n ? `Resumed ${n} card${n === 1 ? "" : "s"} with saved progress` : "That CSV doesn’t look like a Recall results export");
+    if (n) go("study"); else render();
+    return;
+  }
+  const skip = (!$("#skip") || $("#skip").checked) && looksLikeHeader(text);
+  const pairs = parse(text, skip);
+  const n = addCards(pairs);
+  toast(n ? `Imported ${n} card${n === 1 ? "" : "s"}` : "No new cards found – check the tab-separated format");
+  if (n) go("study"); else render();
+}
+
+function bind() {
+  document.querySelectorAll("[data-go]").forEach(b => b.onclick = () => go(b.dataset.go));
+  document.querySelectorAll(".rate button").forEach(b => b.onclick = () => rate(b.dataset.r));
+  const on = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
+  on("#show", () => { revealed = true; render(); });
+  on("#early", () => { early = true; render(); });
+  on("#export", exportCsv);
+  on("#sample", () => {
+    addCards([["Capital of Australia", "Canberra"], ["Powerhouse of the cell", "Mitochondria"], ["Derivative of sin(x)", "cos(x)"], ["Chemical symbol for gold", "Au"], ["Year the Berlin Wall fell", "1989"], ["Largest planet in the solar system", "Jupiter"]]);
+    go("study");
+  });
+  on("#resetStats", () => { deck.forEach(c => Object.assign(c, { again: 0, hard: 0, good: 0, easy: 0, due: 0, streak: 0, retired: false })); persist(); toast("Stats reset"); render(); });
+  on("#clear", () => { if (confirm("Delete all cards and stats?")) { deck = []; persist(); render(); } });
+  const drop = $("#drop"), file = $("#file");
+  if (drop) {
+    drop.onclick = () => file.click();
+    file.onchange = () => importFile(file.files[0]);
+    drop.ondragover = e => { e.preventDefault(); drop.classList.add("over"); };
+    drop.ondragleave = () => drop.classList.remove("over");
+    drop.ondrop = e => { e.preventDefault(); drop.classList.remove("over"); importFile(e.dataTransfer.files[0]); };
+  }
+}
+
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => go(b.dataset.v));
+$("#closeBtn").onclick = () => $("#dlg").close();
+$("#copyBtn").onclick = async () => {
+  const ta = $("#csvText");
+  try { await navigator.clipboard.writeText(ta.value); toast("Copied"); } catch (e) { ta.select(); document.execCommand("copy"); toast("Copied"); }
+};
+document.addEventListener("keydown", e => {
+  if (view !== "study" || e.target.closest("input,textarea") || $("#dlg").open) return;
+  if (!revealed && cur && (e.key === " " || e.key === "Enter")) { e.preventDefault(); revealed = true; render(); }
+  else if (revealed && cur) { const r = { 1: "again", 2: "hard", 3: "good", 4: "easy" }[e.key]; if (r) rate(r); }
+});
+render();
+</script>
+</body>
+</html>
