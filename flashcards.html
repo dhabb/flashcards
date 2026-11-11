@@ -79,7 +79,10 @@ textarea{width:100%;height:220px;font:12px/1.4 ui-monospace,Menlo,monospace;back
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:99px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s}
 .toast.on{opacity:1}
 .empty{color:var(--mute);text-align:center;padding:12px}
-@media (max-width:480px){.card{padding:22px 18px}.totals{grid-template-columns:repeat(2,1fr)}}
+.live{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--good);margin-right:7px;animation:pulse 1.2s infinite}
+@keyframes pulse{50%{opacity:.25}}
+select{font:inherit;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:4px 8px}
+@media (max-width:480px){nav button{padding:7px 10px}.card{padding:22px 18px}.totals{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
 <body>
@@ -88,6 +91,7 @@ textarea{width:100%;height:220px;font:12px/1.4 ui-monospace,Menlo,monospace;back
     <div class="brand"><span class="dot"></span>Recall</div>
     <nav role="tablist">
       <button role="tab" data-v="study">Study</button>
+      <button role="tab" data-v="listen">Listen</button>
       <button role="tab" data-v="insights">Insights</button>
       <button role="tab" data-v="deck">Deck</button>
     </nav>
@@ -153,15 +157,19 @@ function pick() {
   return { state: "wait", next: live[0].due };
 }
 
+function grade(c, r) {
+  c[r]++;
+  const now = Date.now();
+  if (r === "easy") { c.retired = true; c.streak = 0; }
+  else if (r === "good") { c.due = now + goodInt(c); c.streak = (c.streak || 0) + 1; }
+  else { c.due = now + INT[r]; c.streak = 0; }
+  c.last = now;
+  persist();
+}
+
 function rate(r) {
   if (!cur || !revealed) return;
-  cur[r]++;
-  const now = Date.now();
-  if (r === "easy") { cur.retired = true; cur.streak = 0; }
-  else if (r === "good") { cur.due = now + goodInt(cur); cur.streak = (cur.streak || 0) + 1; }
-  else { cur.due = now + INT[r]; cur.streak = 0; }
-  cur.last = now;
-  persist();
+  grade(cur, r);
   cur = null; revealed = false;
   render();
 }
@@ -246,13 +254,99 @@ async function exportCsv() {
   $("#dlg").showModal();
 }
 
+/* ---------- Listening mode ---------- */
+const L = { on: false, card: null, stage: "prompt", rate: 1, audio: null };
+function silentSrc() {
+  const sr = 8000, n = sr * 2, b = new Uint8Array(44 + n), v = new DataView(b.buffer);
+  const w = (o, t) => { for (let i = 0; i < t.length; i++) b[o + i] = t.charCodeAt(i); };
+  w(0, "RIFF"); v.setUint32(4, 36 + n, true); w(8, "WAVEfmt "); v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, sr, true); v.setUint32(28, sr, true);
+  v.setUint16(32, 1, true); v.setUint16(34, 8, true); w(36, "data"); v.setUint32(40, n, true);
+  b.fill(128, 44);
+  let bin = ""; for (let i = 0; i < b.length; i += 4096) bin += String.fromCharCode.apply(null, b.subarray(i, i + 4096));
+  return "data:audio/wav;base64," + btoa(bin);
+}
+function say(t) {
+  try {
+    speechSynthesis.cancel();
+    setTimeout(() => { const u = new SpeechSynthesisUtterance(t); u.rate = L.rate; u.lang = navigator.language || "en-US"; speechSynthesis.speak(u); }, 60);
+  } catch (e) {}
+}
+function keepAlive() { try { if (L.audio && L.audio.paused) L.audio.play().catch(() => {}); } catch (e) {} }
+function lPick() {
+  const live = deck.filter(c => !c.retired).sort((a, b) => a.due - b.due);
+  const others = live.filter(c => !L.card || c.id !== L.card.id);
+  return (others.length ? others : live)[0] || null;
+}
+function lAdvance() {
+  const c = lPick();
+  if (!c) { listenStop(); toast("Deck complete – every card is retired"); render(); return; }
+  L.card = c; L.stage = "prompt"; say(c.front); render();
+}
+function lNext() {
+  if (!L.on || !L.card) return;
+  keepAlive();
+  if (L.stage === "prompt") { L.stage = "answer"; say("Answer. " + L.card.back); render(); }
+  else { grade(L.card, "easy"); lAdvance(); }
+}
+function lPrev() {
+  if (!L.on || !L.card) return;
+  keepAlive();
+  if (L.stage === "answer") { grade(L.card, "hard"); lAdvance(); }
+  else say(L.card.front);
+}
+function lRepeat() {
+  if (!L.on || !L.card) return;
+  keepAlive();
+  say(L.stage === "prompt" ? L.card.front : "Answer. " + L.card.back);
+}
+function listenStart() {
+  L.on = true; L.card = null;
+  try { if (!L.audio) { L.audio = new Audio(silentSrc()); L.audio.loop = true; } L.audio.play().catch(() => {}); } catch (e) {}
+  try {
+    const ms = navigator.mediaSession;
+    if (ms) {
+      ms.metadata = new MediaMetadata({ title: "Recall", artist: "Listening mode" });
+      ms.playbackState = "playing";
+      const h = (a, f) => { try { ms.setActionHandler(a, f); } catch (e) {} };
+      h("nexttrack", lNext); h("previoustrack", lPrev); h("seekforward", lNext); h("seekbackward", lPrev); h("play", lRepeat); h("pause", lRepeat);
+    }
+  } catch (e) {}
+  lAdvance();
+}
+function listenStop() {
+  L.on = false; L.card = null;
+  try { speechSynthesis.cancel(); } catch (e) {}
+  try { if (L.audio) L.audio.pause(); } catch (e) {}
+  try {
+    const ms = navigator.mediaSession;
+    if (ms) { ms.playbackState = "none"; ["nexttrack", "previoustrack", "seekforward", "seekbackward", "play", "pause"].forEach(a => { try { ms.setActionHandler(a, null); } catch (e) {} }); }
+  } catch (e) {}
+}
+function listenView() {
+  if (!deck.length) return `<div class="card"><div class="center"><h2>No cards yet</h2><p>Import a deck first.</p><button class="btn primary" data-go="deck">Import cards</button></div></div>`;
+  if (!L.on || !L.card) {
+    const opt = v => `<option value="${v}"${L.rate === v ? " selected" : ""}>${v}×</option>`;
+    return `<div class="panel"><h3>Listening mode</h3><p>Cards are read aloud so you can review hands-free. Headphone or car buttons control it:</p>
+    <p><b>⏭ Next</b> – read the answer; pressed again after the answer, marks the card <b>Easy</b> (retired) and moves on.<br><b>⏮ Previous</b> – after the answer, marks the card <b>Hard</b> (back in ${fmt(INT.hard)}) and moves on; before the answer, repeats the prompt.<br><b>Play/Pause</b> – repeats what was just read.</p>
+    <div class="row"><label class="chk">Speech speed <select id="lrate">${[0.8, 1, 1.2, 1.5].map(opt).join("")}</select></label><button class="btn primary" id="lstart">Start listening</button></div>
+    <p style="margin:12px 0 0;font-size:13px">Tip: keep the screen on and this tab open. Phones may pause speech when the browser is in the background.</p></div>`;
+  }
+  const c = L.card, ans = L.stage === "answer";
+  return `<div class="card"><div class="tag"><span class="live"></span>Listening · ${ans ? "Answer" : "Prompt"}</div><div class="q">${esc(ans ? c.back : c.front)}</div><div class="grow"></div>
+  <div class="actions">${ans
+    ? `<div class="rate" style="grid-template-columns:repeat(2,1fr)"><button data-l="hard"><b>⏮ Hard</b><small>${fmt(INT.hard)}</small></button><button data-l="easy"><b>⏭ Easy</b><small>Retire</small></button></div>`
+    : `<button class="btn primary block" id="lnext">⏭ Read answer</button>`}</div></div>
+  <div class="row" style="justify-content:center;margin-top:14px"><button class="btn" id="lrep">Repeat</button><button class="btn danger" id="lstop">Stop</button></div>`;
+}
+
 function render() {
   clearTimeout(timer);
   document.querySelectorAll("nav button").forEach(b => b.setAttribute("aria-selected", b.dataset.v === view));
-  $("#main").innerHTML = view === "study" ? studyView() : view === "insights" ? insightsView() : deckView();
+  $("#main").innerHTML = view === "study" ? studyView() : view === "listen" ? listenView() : view === "insights" ? insightsView() : deckView();
   bind();
 }
-function go(v) { view = v; early = false; cur = null; revealed = false; render(); }
+function go(v) { if (v !== "listen" && L.on) listenStop(); view = v; early = false; cur = null; revealed = false; render(); }
 
 function parseCsv(t) {
   const rows = []; let r = [], f = "", q = false;
@@ -310,6 +404,12 @@ function bind() {
   on("#show", () => { revealed = true; render(); });
   on("#early", () => { early = true; render(); });
   on("#export", exportCsv);
+  on("#lstart", listenStart);
+  on("#lstop", () => { listenStop(); render(); });
+  on("#lnext", lNext);
+  on("#lrep", lRepeat);
+  document.querySelectorAll("[data-l]").forEach(b => b.onclick = () => (b.dataset.l === "hard" ? lPrev() : lNext()));
+  const sel = $("#lrate"); if (sel) sel.onchange = () => { L.rate = parseFloat(sel.value) || 1; };
   on("#sample", () => {
     addCards([["Capital of Australia", "Canberra"], ["Powerhouse of the cell", "Mitochondria"], ["Derivative of sin(x)", "cos(x)"], ["Chemical symbol for gold", "Au"], ["Year the Berlin Wall fell", "1989"], ["Largest planet in the solar system", "Jupiter"]]);
     go("study");
@@ -336,6 +436,12 @@ document.addEventListener("keydown", e => {
   if (view !== "study" || e.target.closest("input,textarea") || $("#dlg").open) return;
   if (!revealed && cur && (e.key === " " || e.key === "Enter")) { e.preventDefault(); revealed = true; render(); }
   else if (revealed && cur) { const r = { 1: "again", 2: "hard", 3: "good", 4: "easy" }[e.key]; if (r) rate(r); }
+});
+document.addEventListener("keydown", e => {
+  if (view !== "listen" || !L.on || e.target.closest("input,textarea,select")) return;
+  if (e.key === "ArrowRight") { e.preventDefault(); lNext(); }
+  else if (e.key === "ArrowLeft") { e.preventDefault(); lPrev(); }
+  else if (e.key === " ") { e.preventDefault(); lRepeat(); }
 });
 render();
 </script>
